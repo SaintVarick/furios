@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Трекер Привычек</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <style>
+        .habit-table {
+            min-width: 100%;
+            display: inline-block;
+            overflow-x: auto;
+        }
+        
+        .sticky-left {
+            position: sticky;
+            left: 0;
+            background-color: white;
+            z-index: 10;
+        }
+        
+        .sticky-right {
+            position: sticky;
+            right: 0;
+            background-color: white;
+            z-index: 10;
+        }
+        
+        .sticky-header {
+            position: sticky;
+            left: 0;
+            background-color: #f3f4f6;
+            z-index: 20;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+    <div class="max-w-7xl mx-auto">
+        <div class="bg-white rounded-lg shadow-xl p-4 md:p-6 mb-6">
+            <h1 class="text-2xl md:text-3xl font-bold text-gray-800 mb-6 flex items-center">
+                <i data-lucide="bar-chart-3" class="w-8 h-8 mr-3 text-indigo-600"></i>
+                Трекер Привычек
+            </h1>
+
+            <!-- Добавление новой привычки -->
+            <div class="mb-6 p-4 bg-gray-50 rounded-lg">
+                <h2 class="text-lg font-semibold mb-3">Добавить привычку</h2>
+                <div class="flex flex-col md:flex-row gap-3">
+                    <input
+                        type="text"
+                        id="newHabitName"
+                        placeholder="Название привычки"
+                        class="flex-1 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
+                    <input
+                        type="number"
+                        id="newHabitGoal"
+                        value="30"
+                        placeholder="Цель (дней)"
+                        class="w-full md:w-32 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
+                    <button
+                        id="addHabitBtn"
+                        class="bg-indigo-600 text-white px-6 py-2 rounded hover:bg-indigo-700 transition flex items-center justify-center"
+                    >
+                        <i data-lucide="plus" class="w-5 h-5 mr-1"></i>
+                        Добавить
+                    </button>
+                </div>
+            </div>
+
+            <!-- Выбор месяца и вида -->
+            <div class="mb-4 flex flex-col md:flex-row gap-3 items-center justify-between">
+                <div class="flex gap-3 items-center">
+                    <i data-lucide="calendar" class="w-5 h-5 text-gray-600"></i>
+                    <select
+                        id="monthSelect"
+                        class="p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500"
+                    >
+                        <!-- Месяцы будут заполнены через JS -->
+                    </select>
+                    <select
+                        id="yearSelect"
+                        class="p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500"
+                    >
+                        <option value="2024">2024</option>
+                        <option value="2025" selected>2025</option>
+                        <option value="2026">2026</option>
+                    </select>
+                </div>
+                <div class="flex gap-2">
+                    <button
+                        id="weeklyViewBtn"
+                        class="px-4 py-2 rounded transition bg-indigo-600 text-white"
+                    >
+                        По неделям
+                    </button>
+                    <button
+                        id="dailyViewBtn"
+                        class="px-4 py-2 rounded transition bg-gray-200 text-gray-700 hover:bg-gray-300"
+                    >
+                        По дням
+                    </button>
+                </div>
+            </div>
+
+            <!-- Таблица привычек -->
+            <div id="habitsContainer">
+                <div class="text-center py-12 text-gray-500">
+                    <p class="text-lg">Добавьте свою первую привычку!</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Статистика -->
+        <div id="statsContainer" class="bg-white rounded-lg shadow-xl p-4 md:p-6 hidden">
+            <h2 class="text-xl font-bold mb-4">Статистика за <span id="currentMonth">Январь</span></h2>
+            <div id="statsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- Статистика будет генерироваться через JS -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Инициализация иконок Lucide
+        lucide.createIcons();
+
+        // Состояние приложения
+        const state = {
+            habits: JSON.parse(localStorage.getItem('habits')) || [],
+            selectedMonth: new Date().getMonth(),
+            selectedYear: new Date().getFullYear(),
+            view: 'daily'
+        };
+
+        const months = [
+            'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+            'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
+        ];
+
+        const weekDays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', () => {
+            initMonthSelect();
+            initEventListeners();
+            render();
+        });
+
+        function initMonthSelect() {
+            const monthSelect = document.getElementById('monthSelect');
+            months.forEach((month, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = month;
+                if (index === state.selectedMonth) option.selected = true;
+                monthSelect.appendChild(option);
+            });
+        }
+
+        function initEventListeners() {
+            document.getElementById('addHabitBtn').addEventListener('click', addHabit);
+            document.getElementById('newHabitName').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') addHabit();
+            });
+            document.getElementById('monthSelect').addEventListener('change', (e) => {
+                state.selectedMonth = parseInt(e.target.value);
+                render();
+            });
+            document.getElementById('yearSelect').addEventListener('change', (e) => {
+                state.selectedYear = parseInt(e.target.value);
+                render();
+            });
+            document.getElementById('weeklyViewBtn').addEventListener('click', () => {
+                state.view = 'weekly';
+                updateViewButtons();
+                render();
+            });
+            document.getElementById('dailyViewBtn').addEventListener('click', () => {
+                state.view = 'daily';
+                updateViewButtons();
+                render();
+            });
+        }
+
+        function updateViewButtons() {
+            const weeklyBtn = document.getElementById('weeklyViewBtn');
+            const dailyBtn = document.getElementById('dailyViewBtn');
+            
+            if (state.view === 'weekly') {
+                weeklyBtn.className = 'px-4 py-2 rounded transition bg-indigo-600 text-white';
+                dailyBtn.className = 'px-4 py-2 rounded transition bg-gray-200 text-gray-700 hover:bg-gray-300';
+            } else {
+                weeklyBtn.className = 'px-4 py-2 rounded transition bg-gray-200 text-gray-700 hover:bg-gray-300';
+                dailyBtn.className = 'px-4 py-2 rounded transition bg-indigo-600 text-white';
+            }
+        }
+
+        function addHabit() {
+            const nameInput = document.getElementById('newHabitName');
+            const goalInput = document.getElementById('newHabitGoal');
+            
+            if (nameInput.value.trim()) {
+                const habit = {
+                    id: Date.now(),
+                    name: nameInput.value,
+                    emoji: '⭐',
+                    goal: parseInt(goalInput.value) || 30,
+                    completions: {}
+                };
+                
+                state.habits.push(habit);
+                nameInput.value = '';
+                goalInput.value = '30';
+                saveToLocalStorage();
+                render();
+                lucide.createIcons();
+            }
+        }
+
+        function deleteHabit(id) {
+            state.habits = state.habits.filter(h => h.id !== id);
+            saveToLocalStorage();
+            render();
+        }
+
+        function toggleDay(habitId, day) {
+            state.habits = state.habits.map(habit => {
+                if (habit.id === habitId) {
+                    const key = `${state.selectedYear}-${state.selectedMonth}-${day}`;
+                    const completions = { ...habit.completions };
+                    
+                    if (completions[key]) {
+                        delete completions[key];
+                    } else {
+                        completions[key] = true;
+                    }
+                    
+                    return { ...habit, completions };
+                }
+                return habit;
+            });
+            
+            saveToLocalStorage();
+            render();
+        }
+
+        function isCompleted(habit, day) {
+            const key = `${state.selectedYear}-${state.selectedMonth}-${day}`;
+            return habit.completions[key] || false;
+        }
+
+        function getDaysInMonth(month, year) {
+            return new Date(year, month + 1, 0).getDate();
+        }
+
+        function getCompletedCount(habit) {
+            const daysInMonth = getDaysInMonth(state.selectedMonth, state.selectedYear);
+            let completed = 0;
+            
+            for (let day = 1; day <= daysInMonth; day++) {
+                if (isCompleted(habit, day)) completed++;
+            }
+            
+            return completed;
+        }
+
+        function getMonthProgress(habit) {
+            const completed = getCompletedCount(habit);
+            return Math.round((completed / habit.goal) * 100);
+        }
+
+        function saveToLocalStorage() {
+            localStorage.setItem('habits', JSON.stringify(state.habits));
+        }
+
+        function renderDailyView() {
+            const daysInMonth = getDaysInMonth(state.selectedMonth, state.selectedYear);
+            const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+            
+            let html = `
+                <div class="overflow-x-auto">
+                    <div class="habit-table">
+                        <table class="w-full border-collapse">
+                            <thead>
+                                <tr class="bg-gray-100">
+                                    <th class="border border-gray-300 p-2 text-left sticky-header min-w-[180px]">
+                                        Привычка
+                                    </th>
+                                    <th class="border border-gray-300 p-2 text-center min-w-[60px]">
+                                        Цель
+                                    </th>
+            `;
+            
+            // Дни месяца
+            days.forEach(day => {
+                html += `<th class="border border-gray-300 p-1 text-center min-w-[40px] text-sm">${day}</th>`;
+            });
+            
+            html += `
+                                    <th class="border border-gray-300 p-2 text-center min-w-[80px]">
+                                        Прогресс
+                                    </th>
+                                    <th class="border border-gray-300 p-2 sticky-right bg-gray-100 min-w-[50px]"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+            `;
+            
+            // Строки привычек
+            state.habits.forEach(habit => {
+                const progress = getMonthProgress(habit);
+                const completed = getCompletedCount(habit);
+                
+                html += `
+                    <tr class="hover:bg-gray-50">
+                        <td class="border border-gray-300 p-2 sticky-left bg-white">
+                            <span class="mr-2">${habit.emoji}</span>
+                            ${habit.name}
+                        </td>
+                        <td class="border border-gray-300 p-2 text-center">
+                            ${habit.goal}
+                        </td>
+                `;
+                
+                // Ячейки дней
+                days.forEach(day => {
+                    const completedClass = isCompleted(habit, day) ? '' : 'opacity-0';
+                    html += `
+                        <td 
+                            class="border border-gray-300 p-1 text-center cursor-pointer hover:bg-blue-50"
+                            onclick="toggleDay(${habit.id}, ${day})"
+                        >
+                            <i data-lucide="check" class="w-5 h-5 text-green-600 mx-auto ${completedClass}"></i>
+                        </td>
+                    `;
+                });
+                
+                html += `
+                        <td class="border border-gray-300 p-2 text-center">
+                            <div class="flex flex-col items-center">
+                                <span class="font-semibold">${progress}%</span>
+                                <span class="text-xs text-gray-600">
+                                    ${completed}/${habit.goal}
+                                </span>
+                            </div>
+                        </td>
+                        <td class="border border-gray-300 p-2 text-center sticky-right bg-white">
+                            <button
+                                onclick="deleteHabit(${habit.id})"
+                                class="text-red-500 hover:text-red-700"
+                            >
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+            
+            return html;
+        }
+
+        function renderWeeklyView() {
+            let html = `
+                <div class="overflow-x-auto">
+                    <div class="habit-table">
+                        <table class="w-full border-collapse">
+                            <thead>
+                                <tr class="bg-gray-100">
+                                    <th class="border border-gray-300 p-2 text-left sticky-header min-w-[180px]">
+                                        Привычка
+                                    </th>
+                                    <th class="border border-gray-300 p-2 text-center min-w-[60px]">
+                                        Цель
+                                    </th>
+            `;
+            
+            // Дни недели
+            weekDays.forEach(day => {
+                html += `<th class="border border-gray-300 p-2 text-center min-w-[50px]">${day}</th>`;
+            });
+            
+            html += `
+                                    <th class="border border-gray-300 p-2 text-center min-w-[80px]">
+                                        Прогресс
+                                    </th>
+                                    <th class="border border-gray-300 p-2 sticky-right bg-gray-100 min-w-[50px]"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+            `;
+            
+            // Строки привычек
+            state.habits.forEach(habit => {
+                const progress = getMonthProgress(habit);
+                const completed = getCompletedCount(habit);
+                const daysInMonth = getDaysInMonth(state.selectedMonth, state.selectedYear);
+                
+                html += `
+                    <tr class="hover:bg-gray-50">
+                        <td class="border border-gray-300 p-2 sticky-left bg-white">
+                            <span class="mr-2">${habit.emoji}</span>
+                            ${habit.name}
+                        </td>
+                        <td class="border border-gray-300 p-2 text-center">
+                            ${habit.goal}
+                        </td>
+                `;
+                
+                // Ячейки дней недели (текущая неделя)
+                const today = new Date();
+                const currentDay = today.getDate();
+                
+                for (let i = 0; i < 7; i++) {
+                    const targetDay = currentDay - today.getDay() + 1 + i;
+                    
+                    html += `
+                        <td 
+                            class="border border-gray-300 p-2 text-center cursor-pointer hover:bg-blue-50"
+                            onclick="toggleDay(${habit.id}, ${targetDay})"
+                        >
+                    `;
+                    
+                    if (targetDay > 0 && targetDay <= daysInMonth && isCompleted(habit, targetDay)) {
+                        html += `<i data-lucide="check" class="w-5 h-5 text-green-600 mx-auto"></i>`;
+                    }
+                    
+                    html += `</td>`;
+                }
+                
+                html += `
+                        <td class="border border-gray-300 p-2 text-center">
+                            <div class="flex flex-col items-center">
+                                <span class="font-semibold">${progress}%</span>
+                                <span class="text-xs text-gray-600">
+                                    ${completed}/${habit.goal}
+                                </span>
+                            </div>
+                        </td>
+                        <td class="border border-gray-300 p-2 text-center sticky-right bg-white">
+                            <button
+                                onclick="deleteHabit(${habit.id})"
+                                class="text-red-500 hover:text-red-700"
+                            >
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+            
+            return html;
+        }
+
+        function renderStats() {
+            const statsContainer = document.getElementById('statsContainer');
+            const statsGrid = document.getElementById('statsGrid');
+            const currentMonth = document.getElementById('currentMonth');
+            
+            if (state.habits.length === 0) {
+                statsContainer.classList.add('hidden');
+                return;
+            }
+            
+            statsContainer.classList.remove('hidden');
+            currentMonth.textContent = months[state.selectedMonth];
+            statsGrid.innerHTML = '';
+            
+            state.habits.forEach(habit => {
+                const progress = getMonthProgress(habit);
+                const completed = getCompletedCount(habit);
+                
+                const statCard = document.createElement('div');
+                statCard.className = 'p-4 bg-gray-50 rounded-lg';
+                statCard.innerHTML = `
+                    <div class="flex items-center mb-2">
+                        <span class="text-2xl mr-2">${habit.emoji}</span>
+                        <span class="font-semibold">${habit.name}</span>
+                    </div>
+                    <div class="mb-2">
+                        <div class="flex justify-between text-sm mb-1">
+                            <span>${completed} / ${habit.goal} дней</span>
+                            <span class="font-semibold">${progress}%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-3">
+                            <div
+                                class="bg-gradient-to-r from-green-400 to-green-600 h-3 rounded-full transition-all"
+                                style="width: ${Math.min(progress, 100)}%"
+                            ></div>
+                        </div>
+                    </div>
+                    ${progress >= 100 ? '<span class="text-green-600 text-sm font-semibold">🎉 Цель достигнута!</span>' : ''}
+                `;
+                
+                statsGrid.appendChild(statCard);
+            });
+        }
+
+        function render() {
+            const habitsContainer = document.getElementById('habitsContainer');
+            
+            if (state.habits.length === 0) {
+                habitsContainer.innerHTML = `
+                    <div class="text-center py-12 text-gray-500">
+                        <p class="text-lg">Добавьте свою первую привычку!</p>
+                    </div>
+                `;
+            } else {
+                habitsContainer.innerHTML = state.view === 'daily' ? renderDailyView() : renderWeeklyView();
+            }
+            
+            renderStats();
+            lucide.createIcons(); // Обновляем иконки после рендера
+        }
+
+        // Экспортируем функции для использования в onclick атрибутах
+        window.toggleDay = toggleDay;
+        window.deleteHabit = deleteHabit;
+    </script>
+</body>
+</html>
